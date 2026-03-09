@@ -26,3 +26,11 @@ MCP server connecting Claude to Toodledo.com for GTD-based task management.
 - Tasks response has metadata object as first array element, skip it
 - Status: 0=None, 1=Next Action, 2=Active, 3=Planning, 4=Delegated, 5=Waiting, 6=Hold, 7=Postponed, 8=Someday, 9=Canceled, 10=Reference
 - Priority: -1=Negative, 0=Low, 1=Medium, 2=High, 3=Top
+
+## User's GTD Workflow
+- **Inbox = `.inbox` context** — NOT a folder. All new brain-dump tasks go here.
+- Inbox is processed once daily into the GTD system (assigned folder, context, status, etc.)
+- **Folders = Projects** or long-term collections (e.g. Ideas, Books to Read)
+- **Contexts = Batching** for GTD context batching (e.g. @Office, @Home, @Gemba)
+- When asked to show "inbox", search by context `.inbox`
+- When adding a quick task / brain dump, set context to `.inbox` unless told otherwise
