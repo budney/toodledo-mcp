@@ -10,6 +10,7 @@
     "setup": "tsx src/auth/setup.ts"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.0"
   },
