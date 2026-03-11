@@ -7,7 +7,8 @@ import type { TokenData, ToodledoTokenResponse } from "../types.js";
 const TOKEN_FILE = join(getConfigDir(), "tokens.json");
 const REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh 5 min before expiry
 
-const useSecretManager = !!process.env.GOOGLE_CLOUD_PROJECT;
+// Cloud Run injects TOODLEDO_TOKENS from Secret Manager as an env var
+const useCloudTokens = !!process.env.TOODLEDO_TOKENS;
 
 // In-memory cache for cloud mode (loaded from Secret Manager on first call)
 let cachedTokens: TokenData | null = null;
@@ -25,7 +26,7 @@ export function saveTokens(response: ToodledoTokenResponse): void {
     scope: response.scope,
   };
 
-  if (useSecretManager) {
+  if (useCloudTokens) {
     // In cloud mode, update in-memory cache and persist async
     cachedTokens = data;
     getSecretManagerStore()
@@ -41,10 +42,9 @@ export function saveTokens(response: ToodledoTokenResponse): void {
 }
 
 async function loadTokens(): Promise<TokenData> {
-  if (useSecretManager) {
+  if (useCloudTokens) {
     if (cachedTokens) return cachedTokens;
-    const sm = await getSecretManagerStore();
-    cachedTokens = await sm.loadTokensFromSecret();
+    cachedTokens = JSON.parse(process.env.TOODLEDO_TOKENS!) as TokenData;
     return cachedTokens;
   }
 
