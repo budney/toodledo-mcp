@@ -9,8 +9,6 @@ import { createServer } from "node:http";
 
 const TRANSPORT = process.env.TRANSPORT ?? "stdio";
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
-const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN;
-
 function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "toodledo",
@@ -48,16 +46,6 @@ if (TRANSPORT === "stdio") {
       res.writeHead(404);
       res.end("Not found");
       return;
-    }
-
-    // Bearer token auth
-    if (BEARER_TOKEN) {
-      const auth = req.headers.authorization;
-      if (!auth || auth !== `Bearer ${BEARER_TOKEN}`) {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Unauthorized" }));
-        return;
-      }
     }
 
     if (req.method === "POST" || req.method === "GET") {
