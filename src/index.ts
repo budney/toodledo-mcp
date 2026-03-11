@@ -78,7 +78,8 @@ if (TRANSPORT === "stdio") {
 
     // --- Protected endpoints (require bearer token) ---
 
-    if (url.pathname !== "/mcp" && url.pathname !== "/mcp/") {
+    const mcpPaths = new Set(["/mcp", "/mcp/", "/v1/mcp", "/v1/mcp/"]);
+    if (!mcpPaths.has(url.pathname)) {
       res.writeHead(404);
       res.end("Not found");
       return;
