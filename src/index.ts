@@ -78,7 +78,7 @@ if (TRANSPORT === "stdio") {
 
     // --- Protected endpoints (require bearer token) ---
 
-    if (url.pathname !== "/mcp") {
+    if (url.pathname !== "/mcp" && url.pathname !== "/mcp/") {
       res.writeHead(404);
       res.end("Not found");
       return;
