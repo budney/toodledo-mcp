@@ -5,10 +5,20 @@ import { ToodledoClient } from "./api/client.js";
 import { registerTaskTools } from "./tools/task-tools.js";
 import { registerFolderTools } from "./tools/folder-tools.js";
 import { registerGtdTools } from "./tools/gtd-tools.js";
+import {
+  handleResourceMetadata,
+  handleAuthServerMetadata,
+  handleRegister,
+  handleAuthorize,
+  handleToken,
+  validateBearerToken,
+  sendUnauthorized,
+} from "./auth/oauth-server.js";
 import { createServer } from "node:http";
 
 const TRANSPORT = process.env.TRANSPORT ?? "stdio";
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
+
 function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "toodledo",
@@ -28,39 +38,67 @@ if (TRANSPORT === "stdio") {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 } else if (TRANSPORT === "http") {
-  // Track transports by session ID for cleanup
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
   const httpServer = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
-    // Health check — no auth required
+    // --- Public endpoints (no auth) ---
+
     if (url.pathname === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok" }));
       return;
     }
 
-    // Only /mcp path for MCP traffic
+    if (url.pathname === "/.well-known/oauth-protected-resource") {
+      handleResourceMetadata(req, res);
+      return;
+    }
+
+    if (url.pathname === "/.well-known/oauth-authorization-server") {
+      handleAuthServerMetadata(req, res);
+      return;
+    }
+
+    if (url.pathname === "/oauth/authorize") {
+      handleAuthorize(req, res, url);
+      return;
+    }
+
+    if (url.pathname === "/oauth/token" && req.method === "POST") {
+      handleToken(req, res);
+      return;
+    }
+
+    if (url.pathname === "/oauth/register" && req.method === "POST") {
+      handleRegister(req, res);
+      return;
+    }
+
+    // --- Protected endpoints (require bearer token) ---
+
     if (url.pathname !== "/mcp") {
       res.writeHead(404);
       res.end("Not found");
       return;
     }
 
+    if (!validateBearerToken(req)) {
+      sendUnauthorized(req, res);
+      return;
+    }
+
     if (req.method === "POST" || req.method === "GET") {
-      // Check for existing session
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       let transport = sessionId ? transports.get(sessionId) : undefined;
 
       if (transport) {
-        // Existing session — route request
         await transport.handleRequest(req, res);
         return;
       }
 
       if (req.method === "POST") {
-        // New session — create transport and server
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => crypto.randomUUID(),
           onsessioninitialized: (id) => {
@@ -68,7 +106,6 @@ if (TRANSPORT === "stdio") {
           },
         });
 
-        // Clean up on close
         transport.onclose = () => {
           const id = transport!.sessionId;
           if (id) transports.delete(id);
@@ -80,7 +117,6 @@ if (TRANSPORT === "stdio") {
         return;
       }
 
-      // GET without existing session
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "No active session. Send POST to initialize." }));
       return;
