@@ -42,9 +42,17 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+function startOfTodaySeconds(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return Math.floor(d.getTime() / 1000);
+}
+
 function parseDateValue(value: string): number {
   // Try bare number first (unix timestamp or plain day count from relative-date types)
-  const bare = Number(value.trim());
+  const trimmed = value.trim();
+  if (trimmed === "") return NaN;
+  const bare = Number(trimmed);
   if (!isNaN(bare)) return bare;
 
   // Try natural language via chrono-node; returns unix seconds or NaN
@@ -96,8 +104,9 @@ function matchRule(task: ToodledoTask, rule: ToodledoSearchRule): boolean {
   const now = nowSeconds();
   if (type === "was in the last")      return numRaw > 0 && numRaw >= now - days * SECONDS_PER_DAY;
   if (type === "was not in the last")  return numRaw === 0 || numRaw < now - days * SECONDS_PER_DAY;
-  if (type === "is in the next")       return numRaw > 0 && numRaw <= now + days * SECONDS_PER_DAY && numRaw >= now;
-  if (type === "is not in the next")   return numRaw === 0 || numRaw > now + days * SECONDS_PER_DAY || numRaw < now;
+  const startOfToday = startOfTodaySeconds();
+  if (type === "is in the next")       return numRaw > 0 && numRaw <= now + days * SECONDS_PER_DAY && numRaw >= startOfToday;
+  if (type === "is not in the next")   return numRaw === 0 || numRaw > now + days * SECONDS_PER_DAY || numRaw < startOfToday;
   if (type === "is in")                return numRaw > 0 && Math.abs(numRaw - (now + days * SECONDS_PER_DAY)) < SECONDS_PER_DAY;
   if (type === "is not in")            return numRaw === 0 || Math.abs(numRaw - (now + days * SECONDS_PER_DAY)) >= SECONDS_PER_DAY;
   if (type === "was")                  return numRaw > 0 && Math.abs(numRaw - (now - days * SECONDS_PER_DAY)) < SECONDS_PER_DAY;
