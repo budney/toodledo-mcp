@@ -84,6 +84,19 @@ export interface ToodledoError {
   errorDesc: string;
 }
 
+export interface ToodledoSearchRule {
+  field: string;
+  type: string;
+  value: string;
+}
+
+export interface ToodledoSavedSearch {
+  id: number;
+  name: string;
+  bool: "All" | "Any";
+  search: Record<string, ToodledoSearchRule[]>;
+}
+
 // Status enum for human-readable mapping
 export const STATUS_MAP: Record<number, string> = {
   0: "None",

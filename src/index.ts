@@ -5,6 +5,7 @@ import { ToodledoClient } from "./api/client.js";
 import { registerTaskTools } from "./tools/task-tools.js";
 import { registerFolderTools } from "./tools/folder-tools.js";
 import { registerGtdTools } from "./tools/gtd-tools.js";
+import { registerSearchTools } from "./tools/search-tools.js";
 import {
   handleResourceMetadata,
   handleAuthServerMetadata,
@@ -29,6 +30,7 @@ function createMcpServer(): McpServer {
   registerTaskTools(server, client);
   registerFolderTools(server, client);
   registerGtdTools(server, client);
+  registerSearchTools(server, client);
 
   return server;
 }
