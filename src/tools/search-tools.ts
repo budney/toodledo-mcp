@@ -4,7 +4,6 @@ import type { ToodledoClient } from "../api/client.js";
 import { getSavedSearches } from "../api/searches.js";
 import { getTasks } from "../api/tasks.js";
 import type { ToodledoTask, ToodledoSavedSearch, ToodledoSearchRule } from "../types.js";
-import { STATUS_MAP, PRIORITY_MAP, STATUS_REVERSE } from "../types.js";
 import { formatTaskList } from "../format.js";
 
 // ---------------------------------------------------------------------------
@@ -42,6 +41,15 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+function parseDays(value: string): number {
+  const lower = value.toLowerCase().trim();
+  if (lower === "today")     return 0;
+  if (lower === "tomorrow")  return 1;
+  if (lower === "yesterday") return -1;
+  const m = value.match(/^(-?\d+)/);
+  return m ? Number(m[1]) : Number(value);
+}
+
 const SECONDS_PER_DAY = 86400;
 
 function matchRule(task: ToodledoTask, rule: ToodledoSearchRule): boolean {
@@ -69,12 +77,18 @@ function matchRule(task: ToodledoTask, rule: ToodledoSearchRule): boolean {
 
   if (type === "is more than")  return numRaw > numVal;
   if (type === "is less than")  return numRaw < numVal;
-  if (type === "is after")      return numRaw > numVal;
-  if (type === "is before")     return numRaw > 0 && numRaw < numVal;
 
-  // Relative date types (value = number of days)
-  const days = Number(ruleVal);
+  // For date fields, "is after"/"is before" values may be human-readable ("tomorrow", "2 days")
+  // Treat them as relative offsets from today; a bare unix timestamp also parses correctly.
+  const days = parseDays(ruleVal);
   const now = nowSeconds();
+  const threshold = isNaN(numVal) || ruleVal.match(/[a-z]/i)
+    ? now + days * SECONDS_PER_DAY
+    : numVal;
+
+  if (type === "is after")  return numRaw > 0 && numRaw > threshold;
+  if (type === "is before") return numRaw > 0 && numRaw < threshold;
+
   if (type === "was in the last")      return numRaw > 0 && numRaw >= now - days * SECONDS_PER_DAY;
   if (type === "was not in the last")  return numRaw === 0 || numRaw < now - days * SECONDS_PER_DAY;
   if (type === "is in the next")       return numRaw > 0 && numRaw <= now + days * SECONDS_PER_DAY && numRaw >= now;
@@ -96,18 +110,18 @@ function matchRules(task: ToodledoTask, rules: ToodledoSearchRule[], allMustMatc
 }
 
 function applySearch(tasks: ToodledoTask[], search: ToodledoSavedSearch): ToodledoTask[] {
-  const outerAll = search.bool === "All"; // outer AND if "All", outer OR if "Any"
-  const innerAll = !outerAll;             // inner is opposite
+  // "All" => outer AND, inner OR.  "Any" => outer OR, inner AND.
+  const outerAll = search.bool === "All";
+  const innerAll = !outerAll;
 
   return tasks.filter((task) => {
-    const groups = Object.entries(search.search);
-    const groupResults = groups.map(([, rules]) => matchRules(task, rules, innerAll));
+    const groupResults = Object.entries(search.search).map(([key, rules]) => {
+      // root rules participate in the outer boolean (same as outer)
+      const allMustMatch = key === "root" ? outerAll : innerAll;
+      return matchRules(task, rules, allMustMatch);
+    });
 
-    if (outerAll) {
-      return groupResults.every(Boolean);
-    } else {
-      return groupResults.some(Boolean);
-    }
+    return outerAll ? groupResults.every(Boolean) : groupResults.some(Boolean);
   });
 }
 
