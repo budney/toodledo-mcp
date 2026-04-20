@@ -12,6 +12,7 @@
   "dependencies": {
     "@google-cloud/secret-manager": "^6.1.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "chrono-node": "^2.9.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

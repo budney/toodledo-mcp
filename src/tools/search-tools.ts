@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as chrono from "chrono-node";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToodledoClient } from "../api/client.js";
 import { getSavedSearches } from "../api/searches.js";
@@ -41,13 +42,16 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function parseDays(value: string): number {
-  const lower = value.toLowerCase().trim();
-  if (lower === "today")     return 0;
-  if (lower === "tomorrow")  return 1;
-  if (lower === "yesterday") return -1;
-  const m = value.match(/^(-?\d+)/);
-  return m ? Number(m[1]) : Number(value);
+function parseDateValue(value: string): number {
+  // Try bare number first (unix timestamp or plain day count from relative-date types)
+  const bare = Number(value.trim());
+  if (!isNaN(bare)) return bare;
+
+  // Try natural language via chrono-node; returns unix seconds or NaN
+  const parsed = chrono.parseDate(value);
+  if (parsed) return Math.floor(parsed.getTime() / 1000);
+
+  return NaN;
 }
 
 const SECONDS_PER_DAY = 86400;
@@ -75,20 +79,21 @@ function matchRule(task: ToodledoTask, rule: ToodledoSearchRule): boolean {
   const numRaw = Number(raw);
   const numVal = Number(ruleVal);
 
-  if (type === "is more than")  return numRaw > numVal;
-  if (type === "is less than")  return numRaw < numVal;
+  if (type === "is more than") return numRaw > numVal;
+  if (type === "is less than") return numRaw < numVal;
 
-  // For date fields, "is after"/"is before" values may be human-readable ("tomorrow", "2 days")
-  // Treat them as relative offsets from today; a bare unix timestamp also parses correctly.
-  const days = parseDays(ruleVal);
+  // "is after"/"is before": value may be natural language ("tomorrow", "next monday", "2 days")
+  // parseDateValue handles all of these via chrono-node and returns a unix timestamp.
+  if (type === "is after" || type === "is before") {
+    const threshold = parseDateValue(ruleVal);
+    if (isNaN(threshold)) return false;
+    if (type === "is after")  return numRaw > 0 && numRaw > threshold;
+    if (type === "is before") return numRaw > 0 && numRaw < threshold;
+  }
+
+  // Relative-date types: value is always a bare day count ("3", "9999", etc.)
+  const days = numVal;
   const now = nowSeconds();
-  const threshold = isNaN(numVal) || ruleVal.match(/[a-z]/i)
-    ? now + days * SECONDS_PER_DAY
-    : numVal;
-
-  if (type === "is after")  return numRaw > 0 && numRaw > threshold;
-  if (type === "is before") return numRaw > 0 && numRaw < threshold;
-
   if (type === "was in the last")      return numRaw > 0 && numRaw >= now - days * SECONDS_PER_DAY;
   if (type === "was not in the last")  return numRaw === 0 || numRaw < now - days * SECONDS_PER_DAY;
   if (type === "is in the next")       return numRaw > 0 && numRaw <= now + days * SECONDS_PER_DAY && numRaw >= now;
